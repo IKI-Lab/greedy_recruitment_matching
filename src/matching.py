@@ -22,6 +22,7 @@ import math
 import sys
 import tempfile
 import textwrap
+import contextlib
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -65,12 +66,12 @@ def load_csv(path: str) -> pd.DataFrame:
     try:
         df = pd.read_csv(path)
     except Exception as e:
-        sys.exit(f"ERROR reading {path}: {e}")
+        raise ValueError(f"ERROR reading {path}: {e}")
 
     df.columns = df.columns.str.strip().str.lower()
     missing = REQUIRED_COLS - set(df.columns)
     if missing:
-        sys.exit(f"ERROR: {path} is missing columns: {', '.join(sorted(missing))}")
+        raise ValueError(f"ERROR: {path} is missing columns: {', '.join(sorted(missing))}")
 
     df["age"] = pd.to_numeric(df["age"], errors="coerce")
     df["bmi"] = pd.to_numeric(df["bmi"], errors="coerce")
@@ -87,7 +88,7 @@ def load_csv(path: str) -> pd.DataFrame:
     if dropped:
         print(f"  Warning: {dropped} row(s) in {path} skipped (invalid/missing values)")
     if df.empty:
-        sys.exit(f"ERROR: no valid rows in {path}")
+        raise ValueError(f"ERROR: no valid rows in {path}")
     return df.reset_index(drop=True)
 
 
@@ -412,9 +413,13 @@ def run(
     max_patients: Optional[int],
     max_controls: Optional[int],
     weights: tuple,
+    silent:bool = False,
 ) -> str:
-    enrolled = load_csv(enrolled_path)
-    pool = load_csv(pool_path) if pool_path is not None else None
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        enrolled = load_csv(enrolled_path)
+        pool = load_csv(pool_path) if pool_path is not None else None
+        
     patients = enrolled[enrolled["type"] == "patient"].copy()
     controls = enrolled[enrolled["type"] == "control"].copy()
     pool_pat = pool[pool["type"] == "patient"].copy() if pool is not None else None
@@ -431,8 +436,7 @@ def run(
         else:
             n_patients = max(1, len(controls) - len(patients))
 
-    out = io.StringIO()
-    def w(s, silent=False):
+    def w(s):
         line = s + "\n"
         out.write(line)
         if not silent:
