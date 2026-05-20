@@ -419,7 +419,6 @@ def run(
     with contextlib.redirect_stdout(out):
         enrolled = load_csv(enrolled_path)
         pool = load_csv(pool_path) if pool_path is not None else None
-        
     patients = enrolled[enrolled["type"] == "patient"].copy()
     controls = enrolled[enrolled["type"] == "control"].copy()
     pool_pat = pool[pool["type"] == "patient"].copy() if pool is not None else None
@@ -445,6 +444,7 @@ def run(
     w(hline("="))
     w(" TRIAL RECRUITMENT MATCHING TOOL")
     w(hline("="))
+    w(f" weigths - age: {weights[0]}, gender: {weights[1]}, bmi {weights[2]}")
     w(fmt_balance(patients, controls, weights, "Current balance"))
     w(hline("="))
     w(f" Selecting: {n_patients} patients and {n_controls} controls")
