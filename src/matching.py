@@ -405,14 +405,16 @@ def make_prototypes(
 # ---------------------------------------------------------------------------
 
 def run(
-    enrolled: pd.DataFrame,
-    pool: Optional[pd.DataFrame],
+    enrolled_path: str,
+    pool_path: Optional[str],
     n_patients: Optional[int],
     n_controls: Optional[int],
     max_patients: Optional[int],
     max_controls: Optional[int],
     weights: tuple,
 ) -> str:
+    enrolled = load_csv(enrolled_path)
+    pool = load_csv(pool_path) if pool_path is not None else None
     patients = enrolled[enrolled["type"] == "patient"].copy()
     controls = enrolled[enrolled["type"] == "control"].copy()
     pool_pat = pool[pool["type"] == "patient"].copy() if pool is not None else None
@@ -587,13 +589,9 @@ def main():
         enrolled_path = args.enrolled
         pool_path     = args.pool
 
-    enrolled = load_csv(enrolled_path)
     if not pool_path:
         print("No pool passed, running fully in prototype mode.")
-        pool = None
-    else:
-        pool = load_csv(pool_path)
-    report = run(enrolled, pool, args.n_patients, args.n_controls, None, None, weights)
+    report = run(enrolled_path, pool_path, args.n_patients, args.n_controls, None, None, weights)
     print(report)
 
     if args.out:
