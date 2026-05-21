@@ -26,7 +26,9 @@ Both files must be **CSV files** with the following columns:
 | `sex` | `M`, `F`, or `X` |
 | `bmi` | BMI |
 
-Sex values are flexible — `MALE`/`FEMALE`, `W`, `D`, `männlich`/`weiblich` etc. are all accepted.
+Sex values are flexible — `M` / `F`, `MALE`/`FEMALE`, `M` / `W` / `D`, `männlich`/`weiblich` etc. are all accepted.
+
+A `id` column for the candidate pool is required to identify which, so this can be a simple index 1, 2, 3, .... etc.
 
 Rows with missing or unrecognisable values are skipped automatically, and you will see a warning in the output.
 
