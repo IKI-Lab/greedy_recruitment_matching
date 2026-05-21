@@ -43,6 +43,8 @@ Both the **enrolled** and **pool** files must be CSVs with these columns:
 
 **Sex normalisation:** The tool accepts a range of input formats, including `MALE`/`FEMALE`, `W`, `D`, `NON-BINARY`, `NB`, `1`/`2`, and German variants (`männlich`, `weiblich`, `divers`). These are all mapped to `M`, `F`, or `X`.
 
+**Type normalization:** For type: `patient`/`control`, `P`/`C`, `Gesund`/`Krank`, `G`/`K` are all accepted.
+
 Rows with missing or unrecognisable values are skipped with a warning.
 
 ---
