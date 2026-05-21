@@ -36,6 +36,8 @@ class AppInterface:
         self.w_bmi = StringVar(value="0.2")
         self.n_patients = StringVar(value="100")
         self.n_controls = StringVar(value="100")
+        self.recruit_method = StringVar(value="max")
+        # Weights
         ttk.Label(self.settings_frame, text="Settings:").grid(column=0, row=0, sticky=W)
         ttk.Label(self.settings_frame, text="w_age:").grid(column=0, row=1, sticky=[W, E])
         ttk.Entry(self.settings_frame, textvariable=self.w_age).grid(column=1, row=1, sticky=[W, E])
@@ -43,18 +45,27 @@ class AppInterface:
         ttk.Entry(self.settings_frame, textvariable=self.w_gender).grid(column=3, row=1, sticky=[W, E])
         ttk.Label(self.settings_frame, text="w_bmi:").grid(column=4, row=1, sticky=[W, E])
         ttk.Entry(self.settings_frame, textvariable=self.w_bmi).grid(column=5, row=1, sticky=[W, E])
+        # Recruitment number
         ttk.Label(self.settings_frame, text="N Patients:").grid(column=0, row=2, sticky=[W, E])
         ttk.Entry(self.settings_frame, textvariable=self.n_patients).grid(column=1, row=2, sticky=[W, E])
         ttk.Label(self.settings_frame, text="N Controls:").grid(column=2, row=2, sticky=[W, E])
         ttk.Entry(self.settings_frame, textvariable=self.n_controls).grid(column=3, row=2, sticky=[W, E])
+        # How to recruit
+        ttk.Radiobutton(self.settings_frame, text="New", variable=self.recruit_method, value="new").grid(column=4, row=2)
+        ttk.Radiobutton(self.settings_frame, text="Max", variable=self.recruit_method, value="max").grid(column=5, row=2)
 
 
         self.run_button = ttk.Button(self.control_frame, text="Run", command=self.run_program)
-        self.run_button.grid(column=0, row=5, sticky=W)
+        self.run_button.grid(column=1, row=5, sticky=E)
+        self.save_button = ttk.Button(self.control_frame, text="Save", command=self.save_output)
+        self.save_button.grid(column=2, row=5, sticky=W)
 
         # Text frame
         self.results = Text(self.text_frame)
         self.results.grid(column=0, row=0, sticky=[N, W, E, S])
+        scrollbar = ttk.Scrollbar(self.text_frame, orient=VERTICAL, command=self.results.yview)
+        scrollbar.grid(column=1, row=0, sticky=(N, S))
+        self.results["yscrollcommand"] = scrollbar.set
 
 
         root.columnconfigure(0, weight=1)
@@ -78,6 +89,7 @@ class AppInterface:
         weights = [float(w.get()) for w in [self.w_age, self.w_gender, self.w_bmi]]
         n_patients = int(self.n_patients.get())
         n_controls = int(self.n_controls.get())
+        
 
         if enrolled_path == "No file selected":
             self.results.insert(END, "Please select an enrolled file first.\n")
@@ -89,9 +101,16 @@ class AppInterface:
         self.run_button.config(state=DISABLED)
         def task():
             try:
-                output = matching.run(
-                    enrolled_path, pool_path, None, None, n_patients, n_controls, weights, silent=True
-                )
+                if self.recruit_method.get() == "max":
+                    output = matching.run(
+                        enrolled_path, pool_path, None, None, n_patients, n_controls, weights, silent=True
+                    )
+                elif self.recruit_method.get() == "new":
+                    output = matching.run(
+                        enrolled_path, pool_path, n_patients, n_controls, None, None, weights, silent=True
+                    )
+                else:
+                    raise ValueError(f"Invalid value for self.recruit_method: {self.recruit_method.get()}")
                 self.results.after(0, lambda: self.results.insert(END, output))
             except Exception as e:
                 self.results.after(0, lambda err=e: self.results.insert(END, f"Error: {err}"))
@@ -99,6 +118,21 @@ class AppInterface:
                 self.results.after(0, lambda: self.run_button.config(state=NORMAL))
         self.results.insert(END, "Running...\n")
         threading.Thread(target=task, daemon=True).start()
+
+
+    def save_output(self):
+        content = self.results.get("1.0", END).strip()
+        if not content:
+            self.results.insert(END, "Nothing to save.\n")
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if path:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+                self.results.insert(END, f"Saved to {path}\n")
 
 
 def main():

@@ -560,7 +560,7 @@ def main():
               python trial_matcher.py pool  --enrolled enrolled.csv --pool pool.csv
               python trial_matcher.py proto --enrolled enrolled.csv
               python trial_matcher.py pool  --demo
-              python trial_matcher.py proto --demo --n-controls 8 --n-patients 4
+              python trial_matcher.py proto --demo --n-controls 8 --n-patients 4 --new
         """),
     )
     parser.add_argument("--enrolled",   help="CSV of currently enrolled participants")
@@ -575,6 +575,7 @@ def main():
     parser.add_argument("--weights",    type=float, nargs=3, default=[0.4, 0.4, 0.2],
                         metavar=("AGE", "SEX", "BMI"))
     parser.add_argument("--demo",       action="store_true")
+    parser.add_argument("--mode",       default="max", help="Toggle to set number arguments as numer of new reruits 'new', or max number of recruits 'max'.")
     args = parser.parse_args()
 
     weights = tuple(args.weights)
@@ -595,7 +596,13 @@ def main():
 
     if not pool_path:
         print("No pool passed, running fully in prototype mode.")
-    report = run(enrolled_path, pool_path, args.n_patients, args.n_controls, None, None, weights)
+    
+    if args.mode == "new":
+        report = run(enrolled_path, pool_path, args.n_patients, args.n_controls, None, None, weights)
+    elif args.mode == "max":
+        report = run(enrolled_path, pool_path, None, None, args.n_patients, args.n_controls, weights)
+    else:
+        raise ValueError(f"Invalid value for argument 'mode': {args.mode}")
     print(report)
 
     if args.out:
