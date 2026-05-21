@@ -27,6 +27,7 @@ Both files must be **CSV files** with the following columns:
 | `bmi` | BMI |
 
 Sex values are flexible — `M` / `F`, `MALE`/`FEMALE`, `M` / `W` / `D`, `männlich`/`weiblich` etc. are all accepted.
+For type: `patient`/`control`, `P`/`C`, `Gesund`/`Krank`, `G`/`K` are all accepted.
 
 A `id` column for the candidate pool is required to identify which, so this can be a simple index 1, 2, 3, .... etc.
 
