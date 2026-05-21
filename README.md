@@ -17,7 +17,7 @@ A clinical trial recruitment aid that identifies which candidates from a pool be
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.13+ (It probably works on some earlier versions, I just didn't test it - feel free too try)
 - `pandas`
 - `numpy`
 

@@ -460,7 +460,7 @@ def run(
         patients, controls = cur_pat, cur_ctl
         remaining_pat -= counts["patient"]
         remaining_ctl -= counts["control"]
-        w(f" Found {counts["patient"]} patients and {counts["control"]} controls.")
+        w(f" Found {counts['patient']} patients and {counts['control']} controls.")
         w(f" Patients remaining: {remaining_pat}. Controls remaining: {remaining_ctl}.")
         w(hline("="))
         w(fmt_selection_table(selected))
