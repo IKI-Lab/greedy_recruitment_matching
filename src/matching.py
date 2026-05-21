@@ -67,10 +67,14 @@ _SEX_MAP = {
 }
 
 def _normalise_sex(raw: str) -> str:
-    return _SEX_MAP.get(raw.upper().strip(), raw)   # unknown values pass through and are filtered later
+    if type(raw) == str:
+        raw = raw.upper().strip()
+    return _SEX_MAP.get(raw, raw)   # unknown values pass through and are filtered later
 
 def _normalize_type(raw: str) -> str:
-    return _TYPE_MAP.get(raw.upper().strip(), raw)
+    if type(raw) == str:
+        raw = raw.upper().strip()
+    return _TYPE_MAP.get(raw, raw)
 
 # ---------------------------------------------------------------------------
 # Loading & validation
