@@ -46,10 +46,22 @@ REQUIRED_COLS = {"id", "type", "age", "sex", "bmi"}
 SEX_CATEGORIES = ["M", "F", "X"]
 SEX_LABELS     = {"M": "Male", "F": "Female", "X": "Diverse/X"}
 
+_TYPE_MAP = {
+    "PATIENT": "patient",
+    "P": "patient",
+    "KRANK": "patient",
+    "K": "patient",
+    "CONTROL": "control",
+    "C": "control",
+    "GESUND": "control",
+    "HEALTHY": "control",
+    "G": "control",
+}
+
 _SEX_MAP = {
-    "M": "M", "MALE": "M", "1": "M", "männlich": "M", "MÄNNLICH": "M",
-    "F": "F", "FEMALE": "F", "2": "F", "W": "F", "weiblich": "F", "WEIBLICH": "F",
-    "X": "X", "D": "X", "DIVERSE": "X", "divers": "X",
+    "M": "M", "MALE": "M", "1": "M", "MÄNNLICH": "M",
+    "F": "F", "FEMALE": "F", "2": "F", "W": "F", "WEIBLICH": "F",
+    "X": "X", "D": "X", "DIVERSE": "X", "DIVERS": "X",
     "NON-BINARY": "X", "NONBINARY": "X", "NB": "X",
     "OTHER": "X", "3": "X", "INTER": "X", "INTERSEX": "X",
 }
@@ -57,6 +69,8 @@ _SEX_MAP = {
 def _normalise_sex(raw: str) -> str:
     return _SEX_MAP.get(raw.upper().strip(), raw)   # unknown values pass through and are filtered later
 
+def _normalize_type(raw: str) -> str:
+    return _TYPE_MAP.get(raw.upper().strip(), raw)
 
 # ---------------------------------------------------------------------------
 # Loading & validation
@@ -76,7 +90,7 @@ def load_csv(path: str) -> pd.DataFrame:
     df["age"] = pd.to_numeric(df["age"], errors="coerce")
     df["bmi"] = pd.to_numeric(df["bmi"], errors="coerce")
     df["sex"]  = df["sex"].astype(str).str.strip().str.upper().map(_normalise_sex)
-    df["type"] = df["type"].astype(str).str.strip().str.lower()
+    df["type"] = df["type"].astype(str).str.strip().str.upper().map(_normalize_type)
     df["id"]   = df["id"].astype(str).str.strip()
 
     # Complete-case analysis
@@ -594,7 +608,6 @@ def main():
         report = run(enrolled_path, pool_path, None, None, args.n_patients, args.n_controls, weights)
     else:
         raise ValueError(f"Invalid value for argument 'mode': {args.mode}")
-    print(report)
 
     if args.out:
         Path(args.out).write_text(report, encoding="utf-8")
