@@ -147,12 +147,6 @@ def imbalance(
     )
 
 
-def balance_label(total: float) -> str:
-    if total < 0.10: return "GOOD"
-    if total < 0.20: return "MODERATE"
-    return "POOR"
-
-
 # ---------------------------------------------------------------------------
 # Formatting helpers
 # ---------------------------------------------------------------------------
@@ -161,7 +155,7 @@ def hline(char="─") -> str:
     return char * WIDTH
 
 def bar(value: float, width: int = 28) -> str:
-    filled = min(width, round(min(1.0, value / 1.2) * width))
+    filled = min(width, round(min(1.0, value) * width))
     return "█" * filled + "░" * (width - filled)
 
 def fmt_flag(val, thresholds):
@@ -174,10 +168,7 @@ def fmt_balance(
     label: str = "Current balance",
 ) -> str:
     sc  = imbalance(patients, controls, weights)
-    lbl = balance_label(sc["total"])
-    sym = {"GOOD": "✓", "MODERATE": "~", "POOR": "✗"}[lbl]
-
-    lines = [f"\n  {label}  [{sym} {lbl}]", ""]
+    lines = ["\n"]                                                                      
     lines.append(f"  {'':22}  {'Patients':>10}  {'Controls':>10}")
     lines.append(f"  {'N':22}  {len(patients):>10}  {len(controls):>10}")
     if len(patients) and len(controls):
@@ -194,9 +185,9 @@ def fmt_balance(
         lines.append("")
         lines.append(f"  {'Dimension':<14}  {'Value':>8}  {'':2}  Bar")
         lines.append(f"  {'─'*14}  {'─'*8}  {'─'*2}  {'─'*28}")
-        lines.append(f"  {'Age (SMD)':<14}  {sc['age']:>8.3f}  {fmt_flag(sc['age'],(0.30,0.70)):>2}  {bar(sc['age'])}")
-        lines.append(f"  {'Sex (TVD)':<14}  {sc['sex']:>8.3f}  {fmt_flag(sc['sex'],(0.10,0.20)):>2}  {bar(sc['sex']/0.5)}")
-        lines.append(f"  {'BMI (SMD)':<14}  {sc['bmi']:>8.3f}  {fmt_flag(sc['bmi'],(0.30,0.70)):>2}  {bar(sc['bmi'])}")
+        lines.append(f"  {'Age (SMD)':<14}  {sc['age']:>8.3f}  {fmt_flag(sc['age'],(0.10,0.20)):>2}  {bar(sc['age'])}")
+        lines.append(f"  {'Sex (TVD)':<14}  {sc['sex']:>8.3f}  {fmt_flag(sc['sex'],(0.10,0.20)):>2}  {bar(sc['sex'])}")
+        lines.append(f"  {'BMI (SMD)':<14}  {sc['bmi']:>8.3f}  {fmt_flag(sc['bmi'],(0.10,0.20)):>2}  {bar(sc['bmi'])}")
         lines.append(f"  {'─'*14}  {'─'*8}")
         lines.append(f"  {'Aggregate':<14}  {sc['total']:>8.3f}  (weighted)")
     else:

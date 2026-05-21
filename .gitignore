@@ -1,5 +1,5 @@
 /data
 __pycache__
 dist/
-.spec
+*.spec
 build/
