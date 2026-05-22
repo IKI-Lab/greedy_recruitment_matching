@@ -18,6 +18,7 @@ Optional flags:
 
 import argparse
 import io
+import random
 import math
 import sys
 import tempfile
@@ -331,84 +332,92 @@ def fmt_selection_table(selected: list) -> str:
 # Prototype generation
 # ---------------------------------------------------------------------------
 
-def make_prototypes(
+def make_synthetic_pool(
     patients: pd.DataFrame,
     controls: pd.DataFrame,
-    n: int,
-    role: str,          # "control" or "patient"
-    weights: tuple,
-) -> Tuple[str, str]:
+    n_patients: int,
+    n_controls: int,
+    pool_size: int = 200,
+    seed: int = 42,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Build n prototype profiles for the given role.
-    The 'reference' is the group being matched TO; 'existing' is the group
-    being recruited into.
+    Generate synthetic candidate pools for greedy_sequential to optimise jointly.
+
+    For each role, `pool_size` candidates are sampled from the *reference* group's
+    empirical distribution (the group being matched TO).  greedy_sequential then
+    picks from both pools simultaneously, so patient and control prototypes are
+    chosen in a single interleaved pass — avoiding the double-rebalancing problem
+    that arises when the two roles are handled independently.
+
+    Sampling strategy
+    -----------------
+    Age / BMI : sampled from a Normal(μ, σ) fitted to the reference group,
+                clipped to [18, 85] and [16, 50] respectively.
+    Sex       : sampled from the reference group's empirical proportions
+                (M / F / X).  If the reference group contains fewer than
+                two distinct categories the proportions are used as-is
+                (no smoothing needed for a greedy search).
+
+    Parameters
+    ----------
+    patients, controls : currently enrolled DataFrames (used as reference).
+    n_patients         : how many patient prototypes are ultimately needed
+                         (used only to guard against an empty request).
+    n_controls         : how many control prototypes are ultimately needed.
+    pool_size          : synthetic candidates generated per role (default 200).
+    seed               : random seed for reproducibility.
+
+    Returns
+    -------
+    (pool_pat, pool_ctl) — two DataFrames with columns [id, type, age, sex, bmi].
+    Either may be empty if the corresponding n_* is zero.
     """
-    reference = patients if role == "control" else controls
-    existing  = controls if role == "control" else patients
+    rng = np.random.default_rng(seed)
 
-    if len(reference) == 0:
-        return f"  Cannot generate {role} prototypes — reference group is empty.\n", ""
+    def _sample_role(
+        reference: pd.DataFrame,
+        role: str,
+        n_needed: int,
+    ) -> pd.DataFrame:
+        if n_needed == 0 or len(reference) == 0:
+            return pd.DataFrame(columns=["id", "type", "age", "sex", "bmi"])
 
-    ref_male   = (reference["sex"] == "M").mean()
-    ex_male    = (existing["sex"] == "M").mean() if len(existing) else 0.0
-    ref_age_m  = reference["age"].mean()
-    ref_age_sd = reference["age"].std() if len(reference) > 1 else 5.0
-    ref_bmi_m  = reference["bmi"].mean()
-    ref_bmi_sd = reference["bmi"].std() if len(reference) > 1 else 2.0
-    ex_age_m   = existing["age"].mean() if len(existing) else ref_age_m
-    ex_bmi_m   = existing["bmi"].mean() if len(existing) else ref_bmi_m
-    ne         = len(existing)
+        n = pool_size
 
-    # Solve for target mean of new recruits to pull overall mean to reference
-    if ne + n > 0:
-        target_age = (ref_age_m * (ne + n) - ex_age_m * ne) / n
-        target_bmi = (ref_bmi_m * (ne + n) - ex_bmi_m * ne) / n
-    else:
-        target_age, target_bmi = ref_age_m, ref_bmi_m
+        # --- continuous features ------------------------------------------
+        age_mu  = reference["age"].mean()
+        age_sd  = reference["age"].std(ddof=1) if len(reference) > 1 else 8.0
+        bmi_mu  = reference["bmi"].mean()
+        bmi_sd  = reference["bmi"].std(ddof=1) if len(reference) > 1 else 3.0
 
-    target_age = float(np.clip(target_age, 18, 85))
-    target_bmi = float(np.clip(target_bmi, 16, 50))
+        ages = np.clip(rng.normal(age_mu, max(age_sd, 1.0), n), 18, 85).round().astype(int)
+        bmis = np.clip(rng.normal(bmi_mu, max(bmi_sd, 0.5), n), 16, 50)
+        bmis = np.round(bmis, 1)
 
-    # Sex split needed
-    n_male_target   = round(ref_male * (ne + n)) - round(ex_male * ne)
-    n_male_target   = int(np.clip(n_male_target, 0, n))
-    n_female_target = n - n_male_target
+        # --- sex ------------------------------------------------------------
+        props = (
+            reference["sex"]
+            .value_counts(normalize=True)
+            .reindex(SEX_CATEGORIES, fill_value=0.0)
+        )
+        sexes = rng.choice(SEX_CATEGORIES, size=n, p=props.values)
 
-    # Spread ages evenly across ±0.6 SD to represent realistic variety
-    offsets = np.linspace(-0.6, 0.6, n) * ref_age_sd if n > 1 else np.array([0.0])
+        prefix = "SP" if role == "patient" else "SC"
+        ids = [f"{prefix}{i+1:04d}" for i in range(n)]
 
-    profiles = []
-    for i in range(n):
-        sex = "M" if i < n_male_target else "F"
-        age = int(np.clip(round(target_age + offsets[i]), 18, 85))
-        bmi_off = ((i % 3) - 1) * ref_bmi_sd * 0.2
-        bmi = round(float(np.clip(target_bmi + bmi_off, 16, 50)), 1)
-        profiles.append({
-            "rank":      i + 1,
-            "sex":       sex,
-            "age":       age,
-            "age_range": f"{max(18, age-4)}–{min(85, age+4)}",
-            "bmi":       bmi,
-            "bmi_range": f"{max(16.0, bmi-2.0):.1f}–{min(50.0, bmi+2.0):.1f}",
-            "priority":  "HIGH" if i < 3 else "normal",
+        return pd.DataFrame({
+            "id":   ids,
+            "type": role,
+            "age":  ages,
+            "sex":  sexes,
+            "bmi":  bmis,
         })
 
-    summary = (
-        f"  Recruit {n_male_target}M + {n_female_target}F {role}s  |  "
-        f"target age ≈ {target_age:.0f} yrs (±{ref_age_sd:.0f})  |  "
-        f"target BMI ≈ {target_bmi:.1f} (±{ref_bmi_sd:.1f})"
-    )
+    # Reference for each role is the *opposite* group (the one being matched to)
+    pool_pat = _sample_role(controls, "patient", n_patients)
+    pool_ctl = _sample_role(patients, "control", n_controls)
 
-    lines = []
-    lines.append(f"  {'#':>3}  {'Sex':<7}  {'Age':>5}  {'Age range':>10}  "
-                 f"{'BMI':>6}  {'BMI range':>12}  {'Priority':>8}")
-    lines.append(f"  {'─'*3}  {'─'*7}  {'─'*5}  {'─'*10}  {'─'*6}  {'─'*12}  {'─'*8}")
-    for p in profiles:
-        sex_str = "Male" if p["sex"] == "M" else "Female"
-        lines.append(f"  {p['rank']:>3}  {sex_str:<7}  {p['age']:>5}  "
-                     f"{p['age_range']:>10}  {p['bmi']:>6.1f}  "
-                     f"{p['bmi_range']:>12}  {p['priority']:>8}")
-    return summary, "\n".join(lines)
+    return pool_pat, pool_ctl
 
 # ---------------------------------------------------------------------------
 # Main loop
@@ -481,24 +490,21 @@ def run(
         w(hline("="))
         
 
-    if remaining_pat:
-        w(f"\n Not enough patients found in pool - Creating {remaining_pat} patient prototypes:")
-        w(" (The following list does not contain real patients, but examples of optimal patients to rebalance the distribution)\n")
-        proto_pat_summary, proto_pat_description = make_prototypes(
-            patients, controls, remaining_pat, "patient", weights)
-        w(proto_pat_summary)
-        w(proto_pat_description)
-
-    if remaining_ctl:
-        w(f"\n Not enough controls found in pool - Creating {remaining_ctl} control prototypes:")
-        w(" (The following list does not contain real controls, but examples of optimal controls to rebalance the distribution)\n")
-        proto_ctl_summary, proto_ctl_description = make_prototypes(
-            patients, controls, remaining_ctl, "control", weights)
-        w(proto_ctl_summary)
-        w(proto_ctl_description)
-        
+    if remaining_pat or remaining_ctl:
+        w(f"\n Not enough candidates found in pool - Creating patient and control prototypes:")
+        w(" (The following list does not contain real candidates, but examples of optimal candidates to rebalance the distribution)\n")
+        # TODO: pool size?
+        w(f" Generating pool...")
+        seed = random.randint(0, 6000)
+        synth_pat, synth_ctl = make_synthetic_pool(patients, controls, remaining_pat, remaining_ctl, pool_size=500, seed=seed)
+        w(f" Starting search from generated pool...")
+        selected_proto, patients, controls, _ = greedy_sequential(
+            patients, controls, synth_pat, synth_ctl,
+            remaining_pat, remaining_ctl, weights, early_stop=True
+        )
+        w(fmt_selection_table(selected_proto))
+        w(fmt_balance(patients, controls, weights, "Balance after prototypes"))
  
-
     return out.getvalue()
     
 # ---------------------------------------------------------------------------
