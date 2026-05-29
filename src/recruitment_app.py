@@ -37,14 +37,9 @@ class AppInterface:
         self.n_patients = StringVar(value="100")
         self.n_controls = StringVar(value="100")
         self.recruit_method = StringVar(value="max")
-        # Weights
+
+
         ttk.Label(self.settings_frame, text="Settings:").grid(column=0, row=0, sticky=W)
-        ttk.Label(self.settings_frame, text="w_age:").grid(column=0, row=1, sticky=[W, E])
-        ttk.Entry(self.settings_frame, textvariable=self.w_age).grid(column=1, row=1, sticky=[W, E])
-        ttk.Label(self.settings_frame, text="w_gender:").grid(column=2, row=1, sticky=[W, E])
-        ttk.Entry(self.settings_frame, textvariable=self.w_gender).grid(column=3, row=1, sticky=[W, E])
-        ttk.Label(self.settings_frame, text="w_bmi:").grid(column=4, row=1, sticky=[W, E])
-        ttk.Entry(self.settings_frame, textvariable=self.w_bmi).grid(column=5, row=1, sticky=[W, E])
         # Recruitment number
         ttk.Label(self.settings_frame, text="N Patients:").grid(column=0, row=2, sticky=[W, E])
         ttk.Entry(self.settings_frame, textvariable=self.n_patients).grid(column=1, row=2, sticky=[W, E])

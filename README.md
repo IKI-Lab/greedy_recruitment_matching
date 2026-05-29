@@ -60,7 +60,6 @@ python recruitment_app.py
 1. **Load File: Enrolled** — select your currently enrolled participants CSV.
 2. **Load File: Pool** — optionally select a pool of candidates to recruit from. If omitted, the tool runs in prototype-only mode.
 3. Configure settings:
-   - **w_age / w_gender / w_bmi** — imbalance weights (should sum to 1.0; defaults: 0.4 / 0.4 / 0.2).
    - **N Patients / N Controls** — recruitment target.
    - **New / Max** — whether the target is the number of *new* recruits, or the *maximum total* enrolled after recruitment.
 4. Click **Run**. Results appear in the text area.
@@ -83,7 +82,6 @@ python matching.py [OPTIONS]
 | `--n-patients INT` | Recruitment target for patients | auto |
 | `--n-controls INT` | Recruitment target for controls | auto |
 | `--mode max\|new` | Interpret targets as max total (`max`) or number of new recruits (`new`) | `max` |
-| `--weights AGE SEX BMI` | Imbalance weights, must sum to 1.0 | `0.4 0.4 0.2` |
 | `--out FILE` | Save report to file | none |
 | `--demo` | Run with built-in demo data | — |
 

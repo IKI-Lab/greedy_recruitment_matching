@@ -46,6 +46,7 @@ REQUIRED_COLS = {"id", "type", "age", "sex", "bmi"}
 # Canonical categories used throughout
 SEX_CATEGORIES = ["M", "F", "X"]
 SEX_LABELS     = {"M": "Male", "F": "Female", "X": "Diverse/X"}
+SEX_ENCODING = {"M": [1, 0, 0], "F": [0, 1, 0], "X": [0, 0, 1]}
 
 _TYPE_MAP = {
     "PATIENT": "patient",
@@ -149,22 +150,79 @@ def sex_proportions(group: pd.Series) -> dict:
     return counts.to_dict()
 
 
+def energy_distance_normalized(a: pd.Series, b: pd.Series) -> float:
+    """Energy distance normalized by pooled SD — drop-in replacement for smd()."""
+    if len(a) < 2 or len(b) < 2:
+        return 0.0
+    a_v, b_v = a.values.astype(float), b.values.astype(float)
+    
+    cross = np.mean(np.abs(a_v[:, None] - b_v[None, :]))
+    aa    = np.mean(np.abs(a_v[:, None] - a_v[None, :]))
+    bb    = np.mean(np.abs(b_v[:, None] - b_v[None, :]))
+    ed    = 2 * cross - aa - bb
+    
+    n_a, n_b = len(a), len(b)
+    pooled_sd = math.sqrt(
+        ((n_a - 1) * a.var(ddof=1) + (n_b - 1) * b.var(ddof=1)) / (n_a + n_b - 2)
+    )
+    return float(ed / pooled_sd) if pooled_sd > 0 else 0.0
+
+
+def multivariate_energy_distance(
+    patients: pd.DataFrame,
+    controls: pd.DataFrame,
+    continuous_cols: list[str] = ["age", "bmi"],
+    sex_weight: float = 1.0,   # scale sex contribution relative to continuous
+) -> float:
+    if len(patients) < 2 or len(controls) < 2:
+        return 0.0
+
+    # --- continuous features: pooled z-score ---
+    combined = pd.concat([patients[continuous_cols], controls[continuous_cols]])
+    mu  = combined.mean()
+    std = combined.std(ddof=1).replace(0, 1)
+
+    a_cont = ((patients[continuous_cols] - mu) / std).astype(float).values
+    b_cont = ((controls[continuous_cols] - mu) / std).astype(float).values
+
+    # --- sex: one-hot encoding ---
+    def encode_sex(df):
+        return np.array(
+            [SEX_ENCODING.get(s, [0, 0, 0]) for s in df["sex"]],
+            dtype=float,
+        ) * sex_weight
+
+    a_sex = encode_sex(patients)
+    b_sex = encode_sex(controls)
+
+    # --- concatenate into joint feature space ---
+    a = np.concatenate([a_cont, a_sex], axis=1)
+    b = np.concatenate([b_cont, b_sex], axis=1)
+
+    def mean_dist(x, y):
+        diff = x[:, None, :] - y[None, :, :]
+        return np.sqrt((diff ** 2).sum(axis=-1)).mean()
+
+    cross = mean_dist(a, b)
+    aa    = mean_dist(a, a)
+    bb    = mean_dist(b, b)
+    return float(2 * cross - aa - bb)
+
 def imbalance(
     patients: pd.DataFrame,
     controls: pd.DataFrame,
-    weights: Tuple[float, float, float] = (0.4, 0.4, 0.2),
+    weights: tuple = None,   # ignored, kept for API compatibility
 ) -> dict:
-    w_age, w_sex, w_bmi = weights
+    ed = multivariate_energy_distance(patients, controls)
     age_smd  = smd(patients["age"], controls["age"])
     bmi_smd  = smd(patients["bmi"], controls["bmi"])
-    tvd      = sex_tvd(patients["sex"], controls["sex"])
-    total    = w_age * age_smd + w_sex * tvd + w_bmi * bmi_smd
+    tvd  = sex_tvd(patients["sex"], controls["sex"])
     return dict(
-        age=age_smd, sex=tvd, bmi=bmi_smd, total=total,
+        age=age_smd, sex=tvd, bmi=bmi_smd,   # all point to same score for display compat
+        total=ed,
         p_sex=sex_proportions(patients["sex"]),
         c_sex=sex_proportions(controls["sex"]),
     )
-
 
 # ---------------------------------------------------------------------------
 # Formatting helpers
@@ -208,7 +266,7 @@ def fmt_balance(
         lines.append(f"  {'Sex (TVD)':<14}  {sc['sex']:>8.3f}  {fmt_flag(sc['sex'],(0.10,0.20)):>2}  {bar(sc['sex'])}")
         lines.append(f"  {'BMI (SMD)':<14}  {sc['bmi']:>8.3f}  {fmt_flag(sc['bmi'],(0.10,0.20)):>2}  {bar(sc['bmi'])}")
         lines.append(f"  {'─'*14}  {'─'*8}")
-        lines.append(f"  {'Aggregate':<14}  {sc['total']:>8.3f}  (weighted)")
+        lines.append(f"  {'Energy Distance':<14}  {sc['total']:>8.3f}")
     else:
         lines.append("  (insufficient data for one or both groups)")
     return "\n".join(lines)
@@ -462,7 +520,6 @@ def run(
     w(hline("="))
     w(" TRIAL RECRUITMENT MATCHING TOOL")
     w(hline("="))
-    w(f" weigths - age: {weights[0]}, gender: {weights[1]}, bmi {weights[2]}")
     w(fmt_balance(patients, controls, weights, "Current balance"))
     w(hline("="))
     w(f" Selecting: {n_patients} patients and {n_controls} controls")

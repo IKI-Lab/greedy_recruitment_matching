@@ -37,8 +37,6 @@ Rows with missing or unrecognisable values are skipped automatically, and you wi
 
 ## Settings
 
-**Weights (w_age / w_gender / w_bmi):** How much each dimension counts toward the imbalance score. They should sum to 1.0. The defaults (0.4 / 0.4 / 0.2) work well for most trials.
-
 **N Patients / N Controls:** Your recruitment target — interpreted differently depending on the mode selected:
 
 - **Max** — the *total* number of patients/controls you want enrolled after recruitment (e.g. set 100 to recruit up to 100 total).
